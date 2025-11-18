@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Contrôle Servos</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; }
+    h1 { font-size: 24px; }
+    .row { display: flex; align-items: center; margin-bottom: 10px; gap: 10px; }
+    .slider { flex: 1; }
+    .val { width: 40px; text-align: center; }
+    button { margin-top: 10px; padding: 6px 12px; }
+    a { display: inline-block; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Contrôle mes servos</h1>
+
+  <div class="row">
+    <label for="servo0">Servo 0</label>
+    <input type="range" id="servo0" class="slider" min="0" max="180" value="90">
+    <span id="val0" class="val">90</span>
+  </div>
+
+  <div class="row">
+    <label for="servo1">Servo 1</label>
+    <input type="range" id="servo1" class="slider" min="0" max="180" value="90">
+    <span id="val1" class="val">90</span>
+  </div>
+
+  <div class="row">
+    <label for="servo2">Servo 2</label>
+    <input type="range" id="servo2" class="slider" min="0" max="180" value="90">
+    <span id="val2" class="val">90</span>
+  </div>
+
+  <div class="row">
+    <label for="servo3">Servo 3</label>
+    <input type="range" id="servo3" class="slider" min="0" max="180" value="90">
+    <span id="val3" class="val">90</span>
+  </div>
+
+  <div class="row">
+    <label for="servo4">Servo 4</label>
+    <input type="range" id="servo4" class="slider" min="0" max="180" value="90">
+    <span id="val4" class="val">90</span>
+  </div>
+
+  <button id="all45">Mettre tous les servos à 45°</button>
+
+  <a href="https://wokwi.com/projects/447249704348899329" target="_blank">
+    Lancer la simulation Wokwi
+  </a>
+
+  <script>
+    const NB_SERVOS = 5;
+    for (let i = 0; i < NB_SERVOS; i++) {
+      const slider = document.getElementById('servo'+i);
+      const valSpan = document.getElementById('val'+i);
+
+      slider.addEventListener('input', () => {
+        valSpan.textContent = slider.value;
+        // Ici tu pourras ajouter l'envoi WebUSB vers l'Arduino
+        console.log('Servo', i, '->', slider.value);
+      });
+    }
+
+    document.getElementById('all45').addEventListener('click', () => {
+      for (let i = 0; i < NB_SERVOS; i++) {
+        const slider = document.getElementById('servo'+i);
+        const valSpan = document.getElementById('val'+i);
+        slider.value = 45;
+        valSpan.textContent = 45;
+        console.log('Servo', i, '-> 45');
+      }
+    });
+  </script>
+</body>
+</html>

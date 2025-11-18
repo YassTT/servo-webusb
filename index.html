@@ -1,32 +1,3 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<title>Servo GUI Wokwi</title>
-<style>
-body { font-family: Arial; max-width: 900px; margin: 20px auto; }
-.row { display: flex; align-items: center; gap: 12px; margin: 8px 0; }
-.slider { flex: 1; }
-.val { min-width: 48px; text-align: center; }
-button { padding: 8px 12px; margin-left: 6px; }
-#log { height: 120px; overflow: auto; border: 1px solid #ddd; padding: 6px; background: #fafafa; font-size: 13px; }
-.controls { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-</style>
-</head>
-<body>
-
-<h1>Contrôle servos — Wokwi</h1>
-
-<div class="controls">
-  <button id="btnCycleOn">Démarrer cycle</button>
-  <button id="btnCycleOff">Arrêter cycle</button>
-  <button id="btnAll45">Tous 45°</button>
-</div>
-
-<div id="sliders"></div>
-<h3>Log</h3>
-<div id="log"></div>
-
 <script>
 const NB_SERVOS = 5;
 const logEl = document.getElementById('log');
@@ -37,15 +8,21 @@ function log(msg) {
   logEl.scrollTop = logEl.scrollHeight;
 }
 
-// Création sliders
+// --- Nouveaux états ON/OFF par servo ---
+const servoEnabled = Array(NB_SERVOS).fill(true);
+
+// Création sliders + boutons ON/OFF
 const slidersDiv = document.getElementById('sliders');
 const lastValues = Array(NB_SERVOS).fill(90);
-for (let i=0;i<NB_SERVOS;i++) {
+
+for (let i = 0; i < NB_SERVOS; i++) {
   const row = document.createElement('div');
   row.className = 'row';
+
   const label = document.createElement('div');
   label.textContent = 'Servo ' + i;
   label.style.width = '70px';
+
   const input = document.createElement('input');
   input.type = 'range';
   input.min = 0;
@@ -53,17 +30,30 @@ for (let i=0;i<NB_SERVOS;i++) {
   input.value = 90;
   input.className = 'slider';
   input.dataset.index = i;
+
   const val = document.createElement('div');
   val.className = 'val';
   val.textContent = input.value;
+
+  // --- Bouton ON/OFF pour ce servo ---
+  const toggle = document.createElement('button');
+  toggle.textContent = "ON";
+  toggle.dataset.index = i;
+
+  toggle.addEventListener('click', (e)=>{
+    const idx = e.target.dataset.index;
+    servoEnabled[idx] = !servoEnabled[idx];
+    toggle.textContent = servoEnabled[idx] ? "ON" : "OFF";
+    log(`Servo ${idx} -> ${servoEnabled[idx] ? "activé" : "désactivé"}`);
+  });
 
   input.addEventListener('input', (e)=>{
     const idx = e.target.dataset.index;
     const angle = parseInt(e.target.value);
     val.textContent = angle;
     lastValues[idx] = angle;
-    // Mettre à jour le servo dans Wokwi
-    if (window.wokwi) {
+
+    if (servoEnabled[idx] && window.wokwi) {
       window.wokwi.board.servo(idx, angle);
     }
     log(`Servo ${idx} -> ${angle}`);
@@ -72,12 +62,13 @@ for (let i=0;i<NB_SERVOS;i++) {
   row.appendChild(label);
   row.appendChild(input);
   row.appendChild(val);
+  row.appendChild(toggle);
   slidersDiv.appendChild(row);
 }
 
 // Boutons cycle
 let cycleActive = false;
-let cycleDir = 1; // 1 = vers 180, -1 = vers 0
+let cycleDir = 1;
 let cycleAngle = 0;
 let cycleInterval = null;
 
@@ -86,17 +77,26 @@ document.getElementById('btnCycleOn').addEventListener('click', ()=>{
   cycleActive = true;
   cycleAngle = 0;
   cycleDir = 1;
+
   cycleInterval = setInterval(()=>{
-    for (let i=0;i<NB_SERVOS;i++) {
+    for (let i = 0; i < NB_SERVOS; i++) {
+      if (!servoEnabled[i]) continue; // --- Skip servo OFF ---
+
       lastValues[i] = cycleAngle;
-      document.querySelector(`input[data-index="${i}"]`).value = cycleAngle;
-      document.querySelector(`input[data-index="${i}"]`).nextSibling.textContent = cycleAngle;
+
+      const slider = document.querySelector(`input[data-index="${i}"]`);
+      slider.value = cycleAngle;
+      slider.nextSibling.textContent = cycleAngle;
+
       if (window.wokwi) window.wokwi.board.servo(i, cycleAngle);
     }
-    cycleAngle += 5*cycleDir;
+
+    cycleAngle += 5 * cycleDir;
     if (cycleAngle >= 180) cycleDir = -1;
     if (cycleAngle <= 0) cycleDir = 1;
+
   }, 100);
+
   log("Cycle démarré");
 });
 
@@ -107,15 +107,18 @@ document.getElementById('btnCycleOff').addEventListener('click', ()=>{
 });
 
 document.getElementById('btnAll45').addEventListener('click', ()=>{
-  for (let i=0;i<NB_SERVOS;i++) {
+  for (let i = 0; i < NB_SERVOS; i++) {
     lastValues[i] = 45;
-    document.querySelector(`input[data-index="${i}"]`).value = 45;
-    document.querySelector(`input[data-index="${i}"]`).nextSibling.textContent = 45;
-    if (window.wokwi) window.wokwi.board.servo(i, 45);
+
+    const slider = document.querySelector(`input[data-index="${i}"]`);
+    slider.value = 45;
+    slider.nextSibling.textContent = 45;
+
+    if (servoEnabled[i] && window.wokwi) {
+      window.wokwi.board.servo(i, 45);
+    }
   }
-  log("Tous les servos à 45°");
+  log("Tous les servos à 45° (actifs seulement)");
 });
 </script>
 
-</body>
-</html>

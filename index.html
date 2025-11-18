@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Contrôle Servos WebUSB</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 20px auto; }
+    h1 { font-size: 22px; }
+    .row { display: flex; align-items: center; gap: 12px; margin: 8px 0; }
+    .slider { flex: 1; }
+    .val { width: 40px; text-align: center; }
+    button { padding: 8px 12px; margin-top: 10px; }
+    #log { height: 120px; overflow: auto; border: 1px solid #ddd; padding: 6px; background: #fafafa; font-size: 13px; margin-top: 10px; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    a { display: inline-block; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Contrôle Servos — WebUSB</h1>
+
+  <div class="controls">
+    <button id="btnConnect">Connecter Arduino</button>
+    <button id="btnDisconnect" disabled>Déconnecter</button>
+    <button id="btnCycleOn" disabled>Démarrer cycle</button>
+    <button id="btnCycleOff" disabled>Arrêter cycle</button>
+    <button id="btnAll45" disabled>Tous 45°</button>
+  </div>
+
+  <div id="sliders">
+    <!-- Sliders générés par JS -->
+  </div>
+
+  <h3>Log</h3>
+  <div id="log"></div>
+
+  <a href="https://wokwi.com/projects/447249704348899329" target="_blank">
+    Lancer la simulation Wokwi
+  </a>
+
+  <script>
+    const NB_SERVOS = 5;
+    const logEl = document.getElementById('log');
+
+    function log(s) {
+      const line = document.createElement('div');
+      line.textContent = (new Date()).toLocaleTimeString() + ' — ' + s;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    // Création des sliders
+    const slidersDiv = document.getElementById('sliders');
+    for (let i = 0; i < NB_SERVOS; i++) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      const label = document.createElement('div');
+      label.textContent = 'Servo ' + i;
+      label.style.width = '70px';
+
+      const input = document.createElement('input');
+      input.type = 'range';
+      input.min = 0;
+      input.max = 180;
+      input.value = 90;
+      input.className = 'slider';
+      input.dataset.index = i;
+
+      const val = document.createElement('div');
+      val.className = 'val';
+      val.textContent = input.value;
+
+      input.addEventListener('input', (e) => {
+        val.textContent = e.target.value;
+        // Ici, on pourra envoyer la commande via WebUSB
+        log(`Slider ${e.target.dataset.index} -> ${e.target.value}`);
+      });
+
+      row.appendChild(label);
+      row.appendChild(input);
+      row.appendChild(val);
+      slidersDiv.appendChild(row);
+    }
+
+    // Boutons
+    document.getElementById('btnAll45').addEventListener('click', () => {
+      for (let i = 0; i < NB_SERVOS; i++) {
+        const slider = document.querySelector(`input[data-index='${i}']`);
+        const val = slider.nextSibling;
+        slider.value = 45;
+        val.textContent = 45;
+        log(`Servo ${i} -> 45`);
+      }
+    });
+
+    // Ici on pourra ajouter les fonctions connect/disconnect WebUSB
+    document.getElementById('btnConnect').addEventListener('click', () => log('Connexion WebUSB (à implémenter)'));
+    document.getElementById('btnDisconnect').addEventListener('click', () => log('Déconnexion WebUSB (à implémenter)'));
+    document.getElementById('btnCycleOn').addEventListener('click', () => log('Cycle ON (à implémenter)'));
+    document.getElementById('btnCycleOff').addEventListener('click', () => log('Cycle OFF (à implémenter)'));
+  </script>
+</body>
+</html>

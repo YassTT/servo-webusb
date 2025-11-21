@@ -15,3 +15,10 @@ Control the servo position manually during the cycle
 
 <img width="978" height="379" alt="image" src="https://github.com/user-attachments/assets/cf3e04ec-3391-489f-8dea-eb8092154f70" />
 
+
+
+
+
+
+
+file:///C:/Users/El%C3%A8ve/Downloads/arduino.jpg

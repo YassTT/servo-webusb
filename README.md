@@ -13,14 +13,14 @@ Stop the servo at any moment
 Control the servo position manually during the cycle
 
 
+You can find the interface script in .html
 <img width="978" height="379" alt="image" src="https://github.com/user-attachments/assets/cf3e04ec-3391-489f-8dea-eb8092154f70" />
 
-You can find the interface script in .html
 
 
 
 
-
-<img width="855" height="589" alt="image" src="https://github.com/user-attachments/assets/ddc18c2f-c2c8-4325-b5b7-8387a6a7ee79" />
 
 And find the arduino Script int .txt
+<img width="855" height="589" alt="image" src="https://github.com/user-attachments/assets/ddc18c2f-c2c8-4325-b5b7-8387a6a7ee79" />
+

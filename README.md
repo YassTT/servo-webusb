@@ -11,3 +11,7 @@ Start or stop the servo cycle
 Stop the servo at any moment
 
 Control the servo position manually during the cycle
+
+
+<img width="978" height="379" alt="image" src="https://github.com/user-attachments/assets/cf3e04ec-3391-489f-8dea-eb8092154f70" />
+

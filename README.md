@@ -21,4 +21,5 @@ Control the servo position manually during the cycle
 
 
 
-file:///C:/Users/El%C3%A8ve/Downloads/arduino.jpg
+<img width="855" height="589" alt="image" src="https://github.com/user-attachments/assets/ddc18c2f-c2c8-4325-b5b7-8387a6a7ee79" />
+

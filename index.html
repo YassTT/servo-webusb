@@ -1,48 +1,176 @@
-#include <Servo.h>
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>Servo GUI (Web Serial - 1 Servo)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: Arial; max-width:900px; margin:20px auto; }
+    h1 { font-size:20px }
+    .row { display:flex; align-items:center; gap:12px; margin:8px 0; }
+    .slider { flex:1; min-width:200px; }
+    .val { min-width:48px; text-align:center; }
+    #log { height:120px; overflow:auto; border:1px solid #ddd; padding:6px; background:#fafafa; font-size:13px }
+    button { padding:8px 12px; }
+    .controls { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  </style>
+</head>
+<body>
+  <h1>Contrôle Servo 0 — WebSerial</h1>
 
-Servo servo;
-const int pinServo = 3;
+  <div class="controls">
+    <button id="btnConnect">Connecter</button>
+    <button id="btnDisconnect" disabled>Déconnecter</button>
+    <button id="btnCycleOn" disabled>Démarrer cycle</button>
+    <button id="btnCycleOff" disabled>Arrêter cycle</button>
+    <button id="btnAll45" disabled>45°</button>
+  </div>
 
-bool servoEnabled = true;     // pour STOP/RUN
-bool cycleActive = false;     // pour CYCLE:ON/OFF
+  <div id="sliders" style="margin-top:14px"></div>
 
-unsigned long cycleStart = 0;
-unsigned long moveDuration = 1000;
-unsigned long pauseDuration = 2000;
+  <h3>Log série</h3>
+  <div id="log"></div>
 
-void setup() {
-  Serial.begin(9600);
-  servo.attach(pinServo);
-  servo.write(0);
-  Serial.println("READY");
-}
+<script>
+  const NB_SERVOS = 1;   // IMPORTANT : 1 seul servo !
+  let port = null;
+  let writer = null;
+  let reader = null;
+  let keepReading = false;
+  let lastSent = [-1];
+  let sendThrottleTimer = null;
 
-void loop() {
-
-  // ----- GESTION DU CYCLE -----
-  if (cycleActive) {
-    unsigned long t = millis() - cycleStart;
-
-    if (t < moveDuration) {
-      if (servoEnabled) servo.write(160);
-    }
-    else if (t < moveDuration + pauseDuration) {
-      if (servoEnabled) servo.write(0);
-    }
-    else {
-      cycleStart = millis();
-    }
+  const logEl = document.getElementById('log');
+  function log(s){
+    const line = document.createElement('div');
+    line.textContent = new Date().toLocaleTimeString() + '  —  ' + s;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
   }
 
-  // ----- LECTURE DES COMMANDES WEB SERIAL -----
-  if (Serial.available()) {
-    String cmd = Serial.readStringUntil('\n');
-    cmd.trim();
-    handleCommand(cmd);
+  // ----- Création de 1 slider -----
+  const slidersDiv = document.getElementById('sliders');
+
+  const row = document.createElement('div');
+  row.className = 'row';
+
+  const label = document.createElement('div');
+  label.textContent = 'Servo 0';
+  label.style.width = '70px';
+
+  const input = document.createElement('input');
+  input.type = 'range';
+  input.min = 0;
+  input.max = 180;
+  input.value = 90;
+  input.className = 'slider';
+  input.dataset.index = 0;
+
+  const val = document.createElement('div');
+  val.className = 'val';
+  val.textContent = input.value;
+
+  input.addEventListener('input', (e)=>{
+    val.textContent = e.target.value;
+    scheduleSend(0, e.target.value);
+  });
+
+  const btnStop = document.createElement('button');
+  btnStop.textContent = 'Stop';
+  btnStop.onclick = () => sendCommand(`STOP:0\n`);
+
+  const btnRun = document.createElement('button');
+  btnRun.textContent = 'Run';
+  btnRun.onclick = () => sendCommand(`RUN:0\n`);
+
+  row.appendChild(label);
+  row.appendChild(input);
+  row.appendChild(val);
+  row.appendChild(btnStop);
+  row.appendChild(btnRun);
+  slidersDiv.appendChild(row);
+
+
+  // ----- Envoi commandes -----
+  function scheduleSend(index, angle){
+    lastSent[index] = angle;
+    if (sendThrottleTimer) clearTimeout(sendThrottleTimer);
+    sendThrottleTimer = setTimeout(()=> {
+      if (lastSent[0] !== -1){
+        sendCommand(`S0:${lastSent[0]}\n`);
+        lastSent[0] = -1;
+      }
+    }, 120);
   }
-}
 
+  // ----- Connexion -----
+  async function connect() {
+    try {
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 9600 });
+      log('Port ouvert. Sync...');
 
-// ====================================================
-//                    P
+      await new Promise(r => setTimeout(r, 1500));
 
+      writer = port.writable.getWriter();
+      keepReading = true;
+      readLoop();
+
+      document.getElementById('btnConnect').disabled = true;
+      document.getElementById('btnDisconnect').disabled = false;
+      document.getElementById('btnCycleOn').disabled = false;
+      document.getElementById('btnCycleOff').disabled = false;
+      document.getElementById('btnAll45').disabled = false;
+
+      sendCommand(`S0:${input.value}\n`);
+
+    } catch (e) { log('Erreur: ' + e); }
+  }
+
+  async function disconnect(){
+    keepReading = false;
+    if (reader) { try { await reader.cancel(); } catch(e) {} reader = null; }
+    if (writer) { writer.releaseLock(); writer = null; }
+    if (port) { await port.close(); port = null; }
+
+    document.getElementById('btnConnect').disabled = false;
+    document.getElementById('btnDisconnect').disabled = true;
+    document.getElementById('btnCycleOn').disabled = true;
+    document.getElementById('btnCycleOff').disabled = true;
+    document.getElementById('btnAll45').disabled = true;
+
+    log('Déconnecté.');
+  }
+
+  // ----- Lecture série -----
+  async function readLoop(){
+    const textDecoder = new TextDecoderStream();
+    port.readable.pipeTo(textDecoder.writable);
+    reader = textDecoder.readable.getReader();
+    try {
+      while (keepReading) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (value) log('-> ' + value.trim());
+      }
+    } catch(e) {}
+    if (reader) reader.releaseLock();
+  }
+
+  async function sendCommand(str){
+    if (!port || !writer) return log("Non connecté");
+    const data = new TextEncoder().encode(str);
+    await writer.write(data);
+    log("<- " + str.trim());
+  }
+
+  document.getElementById('btnConnect').onclick = connect;
+  document.getElementById('btnDisconnect').onclick = disconnect;
+  document.getElementById('btnCycleOn').onclick = ()=> sendCommand("CYCLE:ON\n");
+  document.getElementById('btnCycleOff').onclick = ()=> sendCommand("CYCLE:OFF\n");
+  document.getElementById('btnAll45').onclick = ()=> sendCommand("ALL:45\n");
+
+  window.addEventListener('beforeunload', async () => { if (port) await disconnect(); });
+</script>
+</body>
+</html>

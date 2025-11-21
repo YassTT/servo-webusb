@@ -1,185 +1,48 @@
-<!doctype html>
-<html lang="fr">
-<head>
-  <meta charset="utf-8" />
-  <title>Servo GUI (Web Serial)</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <style>
-    body { font-family: Arial, Helvetica, sans-serif; max-width:900px; margin:20px auto; }
-    h1 { font-size:20px }
-    .row { display:flex; align-items:center; gap:12px; margin:8px 0; flex-wrap:wrap; }
-    .slider { flex:1; min-width:200px; }
-    .val { min-width:48px; text-align:center; }
-    button { padding:8px 12px; }
-    #log { height:120px; overflow:auto; border:1px solid #ddd; padding:6px; background:#fafafa; font-size:13px }
-    .controls { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
-  </style>
-</head>
-<body>
-  <h1>Contrôle servos — Interface Web (WebSerial)</h1>
-  <p>Commandes : <code>S{index}:{angle}</code>, <code>STOP:{index}</code>, <code>RUN:{index}</code>, <code>ALL:{angle}</code>, <code>CYCLE:ON/OFF</code></p>
+#include <Servo.h>
 
-  <div class="controls">
-    <button id="btnConnect">Connecter</button>
-    <button id="btnDisconnect" disabled>Déconnecter</button>
-    <button id="btnCycleOn" disabled>Démarrer cycle</button>
-    <button id="btnCycleOff" disabled>Arrêter cycle</button>
-    <button id="btnAll45" disabled>Tous 45°</button>
-  </div>
+Servo servo;
+const int pinServo = 3;
 
-  <div id="sliders" style="margin-top:14px"></div>
+bool servoEnabled = true;     // pour STOP/RUN
+bool cycleActive = false;     // pour CYCLE:ON/OFF
 
-  <h3>Log série</h3>
-  <div id="log"></div>
+unsigned long cycleStart = 0;
+unsigned long moveDuration = 1000;
+unsigned long pauseDuration = 2000;
 
-<script>
-  const NB_SERVOS = 5;
-  let port = null;
-  let writer = null;
-  let reader = null;
-  let keepReading = false;
-  let lastSent = Array(NB_SERVOS).fill(-1);
-  let sendThrottleTimer = null;
+void setup() {
+  Serial.begin(9600);
+  servo.attach(pinServo);
+  servo.write(0);
+  Serial.println("READY");
+}
 
-  const logEl = document.getElementById('log');
-  function log(s){
-    const line = document.createElement('div');
-    line.textContent = (new Date()).toLocaleTimeString() + '  —  ' + s;
-    logEl.appendChild(line);
-    logEl.scrollTop = logEl.scrollHeight;
+void loop() {
+
+  // ----- GESTION DU CYCLE -----
+  if (cycleActive) {
+    unsigned long t = millis() - cycleStart;
+
+    if (t < moveDuration) {
+      if (servoEnabled) servo.write(160);
+    }
+    else if (t < moveDuration + pauseDuration) {
+      if (servoEnabled) servo.write(0);
+    }
+    else {
+      cycleStart = millis();
+    }
   }
 
-  // Création des sliders + boutons STOP/RUN
-  const slidersDiv = document.getElementById('sliders');
-  for (let i=0;i<NB_SERVOS;i++){
-    const row = document.createElement('div');
-    row.className = 'row';
-
-    const label = document.createElement('div');
-    label.textContent = 'Servo ' + i;
-    label.style.width = '70px';
-
-    const input = document.createElement('input');
-    input.type = 'range';
-    input.min = 0;
-    input.max = 180;
-    input.value = 90;
-    input.className = 'slider';
-    input.dataset.index = i;
-
-    const val = document.createElement('div');
-    val.className = 'val';
-    val.textContent = input.value;
-
-    input.addEventListener('input', (e)=>{
-      val.textContent = e.target.value;
-      scheduleSend(e.target.dataset.index, e.target.value);
-    });
-
-    const btnStop = document.createElement('button');
-    btnStop.textContent = 'Stop';
-    btnStop.onclick = () => sendCommand(`STOP:${i}\n`);
-
-    const btnRun = document.createElement('button');
-    btnRun.textContent = 'Run';
-    btnRun.onclick = () => sendCommand(`RUN:${i}\n`);
-
-    row.appendChild(label);
-    row.appendChild(input);
-    row.appendChild(val);
-    row.appendChild(btnStop);
-    row.appendChild(btnRun);
-
-    slidersDiv.appendChild(row);
+  // ----- LECTURE DES COMMANDES WEB SERIAL -----
+  if (Serial.available()) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+    handleCommand(cmd);
   }
+}
 
-  function scheduleSend(index, angle){
-    lastSent[index] = angle;
-    if (sendThrottleTimer) clearTimeout(sendThrottleTimer);
-    sendThrottleTimer = setTimeout(()=> {
-      for (let i=0;i<NB_SERVOS;i++){
-        if (lastSent[i] !== -1){
-          sendCommand(`S${i}:${lastSent[i]}\n`);
-          lastSent[i] = -1;
-        }
-      }
-    }, 120);
-  }
 
-  async function connect() {
-    try {
-      port = await navigator.serial.requestPort();
-      await port.open({ baudRate: 9600 });
-      log('Port série ouvert. Attente Arduino...');
-      await new Promise(r => setTimeout(r, 1500));
+// ====================================================
+//                    P
 
-      writer = port.writable.getWriter();
-      keepReading = true;
-      readLoop();
-
-      document.getElementById('btnConnect').disabled = true;
-      document.getElementById('btnDisconnect').disabled = false;
-      document.getElementById('btnCycleOn').disabled = false;
-      document.getElementById('btnCycleOff').disabled = false;
-      document.getElementById('btnAll45').disabled = false;
-
-      log('Prêt. Sync des sliders...');
-      const inputs = document.querySelectorAll('input[type=range]');
-      inputs.forEach((inp, idx)=> sendCommand(`S${idx}:${inp.value}\n`));
-
-    } catch (e) { log('Erreur connexion: ' + e); }
-  }
-
-  async function disconnect(){
-    keepReading = false;
-    if (reader) { try { await reader.cancel(); } catch(e) {} reader = null; }
-    if (writer) { writer.releaseLock(); writer = null; }
-    if (port) { await port.close(); port = null; }
-
-    document.getElementById('btnConnect').disabled = false;
-    document.getElementById('btnDisconnect').disabled = true;
-    document.getElementById('btnCycleOn').disabled = true;
-    document.getElementById('btnCycleOff').disabled = true;
-    document.getElementById('btnAll45').disabled = true;
-
-    log('Déconnecté.');
-  }
-
-  async function readLoop(){
-    const textDecoder = new TextDecoderStream();
-    port.readable.pipeTo(textDecoder.writable);
-    reader = textDecoder.readable.getReader();
-    try {
-      while (keepReading) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        if (value) value.split(/\r?\n/).forEach(line=>{
-          if (line.trim().length) log('-> ' + line.trim());
-        });
-      }
-    } catch(e) {}
-    if (reader) reader.releaseLock();
-  }
-
-  async function sendCommand(str){
-    if (!port || !writer) return log('Port non connecté: ' + str.trim());
-    try {
-      const data = new TextEncoder().encode(str);
-      await writer.write(data);
-      log('<- ' + str.trim());
-    } catch (e) { log('Erreur envoi: ' + e); }
-  }
-
-  document.getElementById('btnConnect').addEventListener('click', connect);
-  document.getElementById('btnDisconnect').addEventListener('click', disconnect);
-  document.getElementById('btnCycleOn').addEventListener('click', ()=> sendCommand('CYCLE:ON\n'));
-  document.getElementById('btnCycleOff').addEventListener('click', ()=> sendCommand('CYCLE:OFF\n'));
-  document.getElementById('btnAll45').addEventListener('click', ()=> {
-    document.querySelectorAll('input[type=range]').forEach((r)=> { r.value = 45; r.nextSibling.textContent = '45'; });
-    sendCommand('ALL:45\n');
-  });
-
-  window.addEventListener('beforeunload', async () => { if (port) await disconnect(); });
-</script>
-</body>
-</html>

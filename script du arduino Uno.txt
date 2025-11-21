@@ -1,0 +1,109 @@
+#include <Servo.h>
+
+Servo servo;
+const int pinServo = 3;
+
+bool servoEnabled = true;     
+bool cycleActive = false;    
+
+unsigned long cycleStart = 0;
+unsigned long moveDuration = 1000;
+unsigned long pauseDuration = 2000;
+
+void setup() {
+  Serial.begin(9600);
+  servo.attach(pinServo);
+  servo.write(0);
+  Serial.println("READY");
+}
+
+void loop() {
+
+  
+  if (cycleActive) {
+    unsigned long t = millis() - cycleStart;
+
+    if (t < moveDuration) {
+      if (servoEnabled) servo.write(160);
+    }
+    else if (t < moveDuration + pauseDuration) {
+      if (servoEnabled) servo.write(0);
+    }
+    else {
+      cycleStart = millis();
+    }
+  }
+
+  
+  if (Serial.available()) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+    handleCommand(cmd);
+  }
+}
+
+
+
+void handleCommand(String cmd) {
+
+  // Quand on commande un angle → STOP cycle
+  if (cmd.startsWith("S0:")) {
+    cycleActive = false;
+
+    int angle = cmd.substring(3).toInt();
+    angle = constrain(angle, 0, 180);
+
+    if (servoEnabled) servo.write(angle);
+
+    Serial.print("ACK S0:");
+    Serial.println(angle);
+    return;
+  }
+
+  // STOP:0
+  if (cmd == "STOP:0") {
+    cycleActive = false;
+    servoEnabled = false;
+    Serial.println("ACK STOP 0");
+    return;
+  }
+
+  // RUN:0
+  if (cmd == "RUN:0") {
+    servoEnabled = true;
+    Serial.println("ACK RUN 0");
+    return;
+  }
+
+  // ALL:x → appliqué à servo 0
+  if (cmd.startsWith("ALL:")) {
+    cycleActive = false;
+
+    int angle = cmd.substring(4).toInt();
+    angle = constrain(angle, 0, 180);
+
+    if (servoEnabled) servo.write(angle);
+
+    Serial.print("ACK ALL:");
+    Serial.println(angle);
+    return;
+  }
+
+  
+  if (cmd == "CYCLE:ON") {
+    cycleActive = true;
+    cycleStart = millis();
+    Serial.println("ACK CYCLE ON");
+    return;
+  }
+
+  
+  if (cmd == "CYCLE:OFF") {
+    cycleActive = false;
+    Serial.println("ACK CYCLE OFF");
+    return;
+  }
+
+  Serial.print("UNKNOWN: ");
+  Serial.println(cmd);
+}

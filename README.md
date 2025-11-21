@@ -10,4 +10,4 @@ Start or stop the servo cycle
 
 Stop the servo at any moment
 
-Control the servo position manually
+Control the servo position manually during the cycle
